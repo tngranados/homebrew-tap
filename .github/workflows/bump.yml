@@ -1,0 +1,47 @@
+name: Bump
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump newest-files
+        run: |
+          tag=$(gh release view -R tngranados/newest-files --json tagName -q .tagName)
+          url="https://github.com/tngranados/newest-files/archive/refs/tags/${tag}.tar.gz"
+          file=Formula/newest-files.rb
+          grep -qF "$url" "$file" && exit 0
+
+          sha=$(curl -fsSL "$url" | sha256sum | cut -d ' ' -f 1)
+          sed -i -E "s|^  url \".*\"|  url \"${url}\"|; s|^  sha256 \".*\"|  sha256 \"${sha}\"|" "$file"
+          git commit -am "Update newest-files to ${tag}"
+
+      - name: Bump font-nordwand-mono
+        run: |
+          tag=$(gh release view -R tywr/Nordwand-Mono --json tagName -q .tagName)
+          file=Casks/font-nordwand-mono.rb
+          grep -qF "version \"${tag}\"" "$file" && exit 0
+
+          sha=$(curl -fsSL "https://github.com/tywr/Nordwand-Mono/releases/download/${tag}/NordwandMono-TTF.zip" | sha256sum | cut -d ' ' -f 1)
+          sed -i -E "s|^  version \".*\"|  version \"${tag}\"|; s|^  sha256 \".*\"|  sha256 \"${sha}\"|" "$file"
+          git commit -am "Update font-nordwand-mono to ${tag}"
+
+      - name: Push
+        run: git push origin main
